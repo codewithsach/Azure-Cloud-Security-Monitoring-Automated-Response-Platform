@@ -205,3 +205,9 @@ Create a Sentinel Workbook querying the workspace directly (not the other layers
 ---
 
 ## Repository Structure
+
+## Documentation
+
+- [Final Report](docs/Cloud_Security_Monitoring_Report.docx)
+- [Demo Script](docs/Demo_Script.docx)
+- [Project Outline](docs/Capstone_Outline.docx)
