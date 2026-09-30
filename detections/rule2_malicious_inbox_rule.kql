@@ -1,0 +1,27 @@
+// =====================================================================
+// Rule 2: Malicious Inbox Rule Creation
+// -----------------------------------------------------------------
+// Purpose: Detects creation/modification of an Outlook inbox rule.
+// After a mailbox takeover, attackers often create a rule that hides,
+// forwards, or deletes mail so the victim doesn't notice security
+// alerts while the attacker keeps quiet access.
+//
+// Data source : OfficeActivity_CL
+// Severity    : Medium
+// MITRE ATT&CK: T1114 (Email Collection), T1564.008 (Hide Artifacts)
+//               - Persistence / Defense Evasion
+// Schedule    : Daily
+//
+// Entity mapping:
+//   Account -> FullName -> User
+//   IP      -> Address  -> ClientIP
+//
+// Note: Inbox-rule creation is not inherently malicious - users make
+// filing rules all the time. In a busy environment, tune this toward
+// rules that forward mail externally rather than just file it.
+// =====================================================================
+
+OfficeActivity_CL
+| where Operation_s in ("New-InboxRule", "Set-InboxRule", "UpdateInboxRules")
+| extend User = UserId_s, ClientIP = ClientIP_s
+| project TimeGenerated, User, Operation_s, ClientIP

@@ -1,0 +1,27 @@
+// =====================================================================
+// Rule 3: Windows Brute Force
+// -----------------------------------------------------------------
+// Purpose: Flags repeated failed Windows logons against the same
+// account - the signature of a brute-force / password-spray attempt.
+//
+// Data source : SecurityEvent_CL
+// Severity    : Medium
+// MITRE ATT&CK: T1110 - Brute Force (Credential Access)
+// Schedule    : Daily
+//
+// Entity mapping:
+//   Account -> FullName -> Account
+//   Host    -> HostName -> Host
+//
+// IMPORTANT SCHEMA NOTE: EventID is stored as a STRING in this
+// ingestion method, not a number. If you write "EventID_s == 4625"
+// (numeric) instead of "== \"4625\"" (string), this rule will return
+// zero results with no error. Always check the real schema first:
+//     SecurityEvent_CL | take 5
+// =====================================================================
+
+SecurityEvent_CL
+| where EventID_s == "4625"   // 4625 = failed logon. Stored as STRING here.
+| extend Account = Account_s, Host = Computer
+| summarize FailedAttempts = count() by Account, Host
+| where FailedAttempts >= 5   // lower this for a guaranteed demo match

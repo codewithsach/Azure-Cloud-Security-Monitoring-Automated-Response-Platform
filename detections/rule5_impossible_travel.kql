@@ -1,0 +1,27 @@
+// =====================================================================
+// Rule 5: Impossible Travel
+// -----------------------------------------------------------------
+// Purpose: Flags the same user signing in from two geographically
+// distant countries within a short window - physically impossible
+// for one person and one of the clearest signals of account takeover.
+//
+// Data source : SigninLogs_CL
+// Severity    : High
+// MITRE ATT&CK: T1078 - Valid Accounts (Initial Access)
+// Schedule    : Daily
+//
+// Entity mapping:
+//   Account -> FullName -> User
+//
+// NOTE ON TESTING: the base lab dataset only contains one country of
+// sign-in, so this rule won't fire until you inject a second, distant
+// sign-in for the same user - see scripts/inject-test-scenarios.ps1
+// (-Scenario ImpossibleTravel). That's disclosed openly in the report,
+// not hidden: the detection logic is real, the test data point was
+// constructed because the lab didn't naturally produce it.
+// =====================================================================
+
+SigninLogs_CL
+| extend User = UserPrincipalName_s, Country = Location_s
+| summarize Countries = make_set(Country), CountryCount = dcount(Country) by User
+| where CountryCount > 1

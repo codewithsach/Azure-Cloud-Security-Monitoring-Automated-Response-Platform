@@ -1,0 +1,158 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "PlaybookName": {
+      "type": "string",
+      "defaultValue": "PB-Notify-Incident-Email"
+    },
+    "NotifyEmailAddress": {
+      "type": "string",
+      "metadata": {
+        "description": "Email address that receives the automated incident notification."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "office365",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "displayName": "office365",
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/office365')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "azuresentinel",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "displayName": "azuresentinel",
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuresentinel')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "name": "[parameters('PlaybookName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "hidden-SentinelWorkflow": "[resourceGroup().id]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', 'office365')]",
+        "[resourceId('Microsoft.Web/connections', 'azuresentinel')]"
+      ],
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "triggers": {
+            "Microsoft_Sentinel_incident_creation": {
+              "type": "ApiConnectionWebhook",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+                  }
+                },
+                "body": {
+                  "callback_url": "@{listCallbackUrl()}"
+                },
+                "path": "/incident-creation"
+              }
+            }
+          },
+          "actions": {
+            "Add_comment_to_incident": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "incidentArmId": "@triggerBody()?['object']?['id']",
+                  "message": "<p>Automated triage: this incident was processed by PB-Notify-Incident-Email.<br>\nRule: @{triggerBody()?['object']?['properties']?['title']}<br>\nSeverity: @{triggerBody()?['object']?['properties']?['severity']}</p>"
+                },
+                "path": "/Incidents/Comment"
+              }
+            },
+            "Apply_Auto-Triaged_tag": {
+              "type": "ApiConnection",
+              "runAfter": {
+                "Add_comment_to_incident": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuresentinel']['connectionId']"
+                  }
+                },
+                "method": "put",
+                "body": {
+                  "incidentArmId": "@triggerBody()?['object']?['id']",
+                  "labels": ["Auto-Triaged"]
+                },
+                "path": "/Incidents"
+              }
+            },
+            "Send_notification_email": {
+              "type": "ApiConnection",
+              "runAfter": {
+                "Apply_Auto-Triaged_tag": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": {
+                  "To": "[parameters('NotifyEmailAddress')]",
+                  "Subject": "Sentinel Incident: @{triggerBody()?['object']?['properties']?['title']} (@{triggerBody()?['object']?['properties']?['severity']})",
+                  "Body": "<p><strong>Incident:</strong> @{triggerBody()?['object']?['properties']?['title']}<br>\n<strong>Severity:</strong> @{triggerBody()?['object']?['properties']?['severity']}<br>\n<strong>Status:</strong> @{triggerBody()?['object']?['properties']?['status']}<br>\n<strong>Description:</strong> @{triggerBody()?['object']?['properties']?['description']}<br>\n<strong>Link:</strong> <a href=\"@{triggerBody()?['object']?['properties']?['incidentUrl']}\">Open in Defender portal</a></p>\n<p>This incident was automatically commented on and tagged Auto-Triaged before this email was sent.</p>"
+                },
+                "path": "/v2/Mail"
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "type": "Object",
+              "defaultValue": {}
+            }
+          }
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "office365": {
+                "connectionId": "[resourceId('Microsoft.Web/connections', 'office365')]",
+                "connectionName": "office365",
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/office365')]"
+              },
+              "azuresentinel": {
+                "connectionId": "[resourceId('Microsoft.Web/connections', 'azuresentinel')]",
+                "connectionName": "azuresentinel",
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuresentinel')]"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

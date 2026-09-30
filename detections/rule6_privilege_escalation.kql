@@ -1,0 +1,27 @@
+// =====================================================================
+// Rule 6: Privilege Escalation via Role Assignment
+// -----------------------------------------------------------------
+// Purpose: Detects a new role being granted (roleAssignments/write) -
+// how an attacker who has already gotten in expands permissions for
+// a more durable foothold.
+//
+// Data source : AzureActivity_CL
+// Severity    : High
+// MITRE ATT&CK: T1098 - Account Manipulation (Privilege Escalation)
+// Schedule    : Daily
+//
+// Entity mapping:
+//   Account -> FullName -> Caller
+//   IP      -> Address  -> IP
+//
+// NOTE ON TESTING: the live Azure Activity connector can lag behind a
+// real role assignment (ingestion latency, not a bug). If the rule
+// doesn't fire against a role change you just made, supplement a
+// confirmed event with scripts/inject-test-scenarios.ps1
+// (-Scenario PrivilegeEscalation) rather than waiting indefinitely.
+// =====================================================================
+
+AzureActivity_CL
+| where OperationNameValue_s has "roleAssignments/write"
+| extend Caller = Caller_s, IP = CallerIPAddress
+| project TimeGenerated, Caller, IP

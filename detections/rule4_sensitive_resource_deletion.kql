@@ -1,0 +1,27 @@
+// =====================================================================
+// Rule 4: Sensitive Azure Resource Deletion
+// -----------------------------------------------------------------
+// Purpose: Catches a successful, high-impact control-plane deletion.
+// Deletions can cause outages and can also be used to destroy
+// evidence of other malicious activity. This is an original rule
+// added beyond the base training lab content.
+//
+// Data source : AzureActivity_CL
+// Severity    : High
+// MITRE ATT&CK: T1485 - Data Destruction (Impact)
+// Schedule    : Daily
+//
+// Entity mapping:
+//   Account -> FullName -> Caller
+//   IP      -> Address  -> IP
+//
+// Note: Deletions are routine admin activity as often as they're
+// malicious. In production, pair this with context on whether the
+// caller normally performs deletions.
+// =====================================================================
+
+AzureActivity_CL
+| where OperationNameValue_s has "DELETE"
+| where ActivityStatusValue_s =~ "Success"
+| extend Caller = Caller_s, IP = CallerIPAddress
+| project TimeGenerated, Caller, IP

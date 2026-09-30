@@ -1,0 +1,23 @@
+// =====================================================================
+// Rule 1: Sign-ins to Disabled Accounts
+// -----------------------------------------------------------------
+// Purpose: Catches sign-in attempts against accounts that are already
+// disabled. Attackers spraying stolen/guessed credentials often hit
+// disabled, forgotten accounts because nobody expects activity there.
+//
+// Data source : SigninLogs_CL
+// Severity    : Medium
+// MITRE ATT&CK: T1110 - Brute Force (Credential Access)
+// Schedule    : Run daily (NOT hourly - see README, this caused a
+//               900+ duplicate incident problem when tested hourly
+//               against static data).
+//
+// Entity mapping when creating the analytics rule:
+//   Account -> FullName -> User
+//   IP      -> Address  -> IP
+// =====================================================================
+
+SigninLogs_CL
+| where ResultType == 50057   // 50057 = account disabled
+| extend IP = IPAddress, Country = Location_s, User = UserPrincipalName_s
+| project TimeGenerated, IP, Country, User
